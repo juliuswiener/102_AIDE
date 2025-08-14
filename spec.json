@@ -1,0 +1,17 @@
+{
+    "title": "CLI tool to add two numbers",
+    "description": "A command-line interface (CLI) tool that takes two numbers as input and outputs their sum.",
+    "acceptance_criteria": [
+        "The tool should accept two numbers as input.",
+        "The tool should output the sum of the two numbers.",
+        "The tool should handle invalid input gracefully (e.g., non-numeric input)."
+    ],
+    "non_goals": [],
+    "deliverables": [
+        "A CLI tool executable."
+    ],
+    "tests_to_run": [
+        "Test with valid numeric inputs.",
+        "Test with invalid inputs (e.g., non-numeric input, empty input)."
+    ]
+}

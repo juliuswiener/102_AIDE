@@ -1,0 +1,5 @@
+{
+    "Test with two positive integers.": "Error: python: can't open file '/home/julius/00_projects/102_AIDE/A': [Errno 2] No such file or directory\n",
+    "Test with two negative integers.": "Error: python: can't open file '/home/julius/00_projects/102_AIDE/A': [Errno 2] No such file or directory\n",
+    "Test with at least one floating-point number.": "Error: python: can't open file '/home/julius/00_projects/102_AIDE/A': [Errno 2] No such file or directory\n"
+}
