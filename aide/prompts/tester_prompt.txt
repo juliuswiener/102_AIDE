@@ -4,8 +4,8 @@ You have access to the `command_runner_tool(command)` to execute the tests.
 
 **Instructions:**
 1.  For each test in the `tests_to_run` list, execute it using the `command_runner_tool`.
-2.  The deliverable file is `{spec[deliverables][0]}`.
-3.  Format the test command as `python {spec[deliverables][0]} <test_case>`.
+2.  The deliverable file is `{deliverable}`.
+3.  Format the test command as `python {deliverable} <test_case>`.
 4.  After running all the tests, respond with a single JSON object containing the test report.
 
 **Specification:**

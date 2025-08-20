@@ -4,19 +4,29 @@ You have access to the following tools:
 - `write_file_tool(path, content)`: Writes content to a file.
 - `read_file_tool(path)`: Reads the content of a file.
 - `command_runner_tool(command)`: Executes a shell command.
+- `websocket_test_tool(uri, message)`: Connects to a WebSocket, sends a message, and returns the response.
+- `docker_compose_up_tool(compose_file)`: Starts services using Docker Compose.
+- `docker_compose_down_tool(compose_file)`: Stops services using Docker Compose.
 
 **Instructions:**
-1.  Follow the plan step by step.
-2.  Use the `write_file_tool` to create or modify files.
-3.  After writing code, use the `command_runner_tool` to run tests.
-4.  If you receive critic feedback, read the relevant file, modify it to address the feedback, and save it.
-5.  When you are finished, respond with a final message summarizing what you have done.
+1.  Consult the **API Schema** and **Code Map** to understand the project.
+2.  Follow the plan step by step.
+3.  For tests that require running services, use `docker_compose_up_tool` before running the tests and `docker_compose_down_tool` after.
+4.  If tests fail, use the critic feedback to fix the code and re-run the tests.
+5.  Continue until all tests pass.
+6.  When all tests pass, respond with a final message summarizing what you have done.
 
 **Specification:**
 {spec}
 
 **Plan:**
 {plan}
+
+**Code Map:**
+{code_map}
+
+**API Schema:**
+{api_schema}
 
 **Critic Feedback:**
 {critic_feedback}

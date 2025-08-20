@@ -1,0 +1,108 @@
+{
+    "calculator.py": {
+        "imports": [],
+        "classes": [],
+        "functions": [
+            "add"
+        ]
+    },
+    "adder.py": {
+        "imports": [
+            "sys"
+        ],
+        "classes": [],
+        "functions": [
+            "add"
+        ]
+    },
+    "main.py": {
+        "imports": [
+            "fastapi"
+        ],
+        "classes": [],
+        "functions": [
+            "read_root"
+        ]
+    },
+    "test_calculator.py": {
+        "imports": [
+            "unittest",
+            "calculator"
+        ],
+        "classes": [
+            "TestCalculator"
+        ],
+        "functions": [
+            "test_add_positive",
+            "test_add_negative",
+            "test_add_zero",
+            "test_add_float"
+        ]
+    },
+    "api.py": {
+        "imports": [
+            "fastapi"
+        ],
+        "classes": [],
+        "functions": [
+            "read_root"
+        ]
+    },
+    "tests/test_api.py": {
+        "imports": [
+            "asyncio",
+            "httpx",
+            "pytest"
+        ],
+        "classes": [],
+        "functions": []
+    },
+    "tests/test_calculator.py": {
+        "imports": [
+            "pytest",
+            "calculator"
+        ],
+        "classes": [],
+        "functions": [
+            "test_add_positive",
+            "test_add_negative",
+            "test_add_zero",
+            "test_add_float"
+        ]
+    },
+    "aide/src/aide/app.py": {
+        "imports": [
+            "os",
+            "subprocess",
+            "sys",
+            "json",
+            "ast",
+            "glob",
+            "asyncio",
+            "websockets",
+            "signal",
+            "langchain_core.messages",
+            "langchain_google_genai",
+            "langchain_core.tools",
+            "rich"
+        ],
+        "classes": [],
+        "functions": [
+            "read_file_tool",
+            "write_file_tool",
+            "command_runner_tool",
+            "build_code_map_tool",
+            "load_schema_tool",
+            "websocket_test_tool",
+            "docker_compose_up_tool",
+            "docker_compose_down_tool",
+            "run_agent_turn",
+            "spec_generator",
+            "planner",
+            "implementer",
+            "tester",
+            "critic",
+            "main"
+        ]
+    }
+}

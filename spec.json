@@ -1,17 +1,18 @@
 {
-    "title": "CLI tool to add two numbers",
-    "description": "A command-line interface (CLI) tool that takes two numbers as input and outputs their sum.",
+    "title": "Test API Server Startup and Shutdown",
+    "description": "Create a test that starts the uvicorn server for api.py using subprocess, sends a GET request to the server using httpx, and then kills the server process.",
     "acceptance_criteria": [
-        "The tool should accept two numbers as input.",
-        "The tool should output the sum of the two numbers.",
-        "The tool should handle invalid input gracefully (e.g., non-numeric input)."
+        "A test function is created in tests/test_api.py.",
+        "The test function starts the uvicorn server for api.py using subprocess.",
+        "The test function sends a GET request to http://localhost:8000/ using httpx.",
+        "The test function kills the server process.",
+        "The test passes."
     ],
     "non_goals": [],
     "deliverables": [
-        "A CLI tool executable."
+        "A modified tests/test_api.py file containing the new test."
     ],
     "tests_to_run": [
-        "Test with valid numeric inputs.",
-        "Test with invalid inputs (e.g., non-numeric input, empty input)."
+        "The new test in tests/test_api.py"
     ]
 }

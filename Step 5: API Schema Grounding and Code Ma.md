@@ -75,3 +75,16 @@ Implementation Requirements
 Notes
 
 Grounding the assistant in explicit API definitions and code relationships is a powerful way to align its outputs with user expectations and existing code. It also reduces hallucinations about endpoint names or parameters. This step sets the foundation for more advanced routing and multi‑module planning in subsequent steps.
+
+---
+
+## Completion Summary
+
+The **Code Map Generation** portion of this step has been fully implemented.
+
+*   A new tool, `build_code_map_tool`, was added to `aide/src/aide/app.py`. It uses Python's `ast` and `glob` modules to scan the project for `.py` files and generate a `code_map.json` file. This file details the imports, classes, and functions within each Python source file.
+*   The main execution loop in `app.py` was updated to call this tool at the beginning of each run, ensuring the agent always has an up-to-date view of the codebase.
+*   The `implementer` and `critic` agent prompts (`implementer_prompt.txt` and `critic_prompt.txt`) were updated to include the `code_map.json` as context, enabling them to make more informed decisions.
+*   The `build_code_map_tool` is configured to ignore files in `venv`, `.venv`, and `benchmark_system_DONT_TOUCH` directories to avoid parsing irrelevant code.
+
+The **API Schema Grounding** portion of this step has not yet been implemented and will be the focus of the next development cycle.

@@ -1,4 +1,10 @@
 Step 6: Real‑Time Interaction and Performance Optimisation (Phase 2 – Real‑Time & Multi‑Module)
+---
+**STATUS: PAUSED**
+
+**This step is currently blocked by the requirements of Step 7. The agent's inability to reliably manage background processes for testing (e.g., starting and stopping a web server for WebSocket tests) has made it clear that a robust process orchestration system is a prerequisite. Work on this step will resume after the tools outlined in Step 7 are implemented.**
+---
+
 Overview
 
 This step equips AIDE to handle interactive services and performance constraints. Many modern applications require real‑time communication (e.g., WebSockets) and must meet response time budgets. We extend the testing and implementation capabilities to include event‑driven systems and introduce a performance agent that monitors and suggests optimisations. At the end of this step, AIDE should reliably implement and test features involving WebSockets and should be able to diagnose simple performance issues.

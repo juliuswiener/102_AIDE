@@ -1,4 +1,9 @@
 Step 7: Process Orchestration and Resilience (Phase 3 – Job Orchestration & Resilience)
+---
+**STATUS: IN PROGRESS**
+
+**This step is now the primary focus. The implementation of `docker-compose` tools is underway to address the agent's inability to manage background processes for testing, which is currently blocking Step 6.**
+---
 Overview
 
 As AIDE moves toward autonomous operation on complex systems, it must manage multiple processes, services, and containers. The seventh step introduces process orchestration—the ability to bring up and tear down services (e.g., databases, message queues, web servers) and to coordinate them during tests. Additionally, this step equips the system to handle failures gracefully via resilience mechanisms. A new orchestration tool is added to the agent’s toolkit, and the tester and critic agents are expanded to handle distributed, multi‑process environments. At the end of this step, AIDE will be able to spin up a composed system, run end‑to‑end tests against it, and recover from simulated failures such as crashed services.
