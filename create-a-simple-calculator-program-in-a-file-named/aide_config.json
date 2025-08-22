@@ -1,0 +1,5 @@
+{
+    "approved_commands": {
+        "pytest test_calculator.py": "always"
+    }
+}

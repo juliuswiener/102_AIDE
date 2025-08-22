@@ -1,341 +1,214 @@
 #!/usr/bin/env python
-import os
-import subprocess
 import sys
 import json
-import ast
-import glob
-import asyncio
-import websockets
-import signal
-from langchain_core.messages import HumanMessage, ToolMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.tools import tool
+import os
+import re
+import subprocess
+import difflib
+import argparse
+from datetime import datetime, timezone
 from rich import print
+import requests
+from aide.graph import create_graph, AppState
+from aide.utils import log_event as log_event_util
 
-# --- Tool Definitions ---
-@tool
-def read_file_tool(path: str):
-    """A tool for reading files."""
+def get_project_path(user_request: str) -> str:
+    """Creates a sanitized and truncated directory name from the user request."""
+    sanitized = re.sub(r'[^a-zA-Z0-9\s]', '', user_request).lower()
+    sanitized = re.sub(r'\s+', '-', sanitized)
+    return os.path.abspath(sanitized[:50])
+
+def log_event(event_type, details):
+    log_event_util(event_type, details)
+
+def save_state(state):
+    with open("aide_state.json", "w") as f:
+        json.dump(state, f, indent=4)
+
+def load_state():
+    if not os.path.exists("aide_state.json"):
+        return {}
+    with open("aide_state.json", "r") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+
+def read_file_tool(file_path):
+    if not os.path.exists(file_path):
+        return f"[Errno 2] No such file or directory: '{file_path}'"
+    with open(file_path, "r") as f:
+        return f.read()
+
+def write_file_tool(file_path, content):
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "w") as f:
+        f.write(content)
+    return f"Successfully wrote to {file_path}"
+
+def docker_command_runner(command, network_disabled=False):
     try:
-        with open(path, "r") as f:
-            return f.read()
-    except Exception as e:
-        return str(e)
+        if os.path.exists("Dockerfile"):
+            print("--- Building Dockerfile ---")
+            build_command = "docker build -t aide-sandbox ."
+            build_result = subprocess.run(build_command, shell=True, capture_output=True, text=True)
+            if build_result.returncode != 0:
+                return f"Error building Dockerfile: {build_result.stderr}"
+            image_name = "aide-sandbox"
+        else:
+            image_name = "python:3.11-slim"
 
-@tool
-def write_file_tool(path: str, content: str):
-    """A tool for writing to files."""
-    try:
-        with open(path, "w") as f:
-            f.write(content)
-        return f"Successfully wrote to {path}"
-    except Exception as e:
-        return str(e)
+        docker_command = f"docker run --rm"
+        if network_disabled:
+            docker_command += " --network=none"
+        docker_command += f" {image_name} {command}"
 
-@tool
-def command_runner_tool(command: str):
-    """A tool for running shell commands."""
+        result = subprocess.run(
+            docker_command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return f"Error: {result.stderr}\nExit Code: {result.returncode}"
+        return result.stdout
+    except FileNotFoundError:
+        return "Docker not found. Please ensure Docker is installed and in your PATH."
+
+def command_runner(command):
     try:
         result = subprocess.run(
-            command, shell=True, capture_output=True, text=True, timeout=30
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
         )
-        if result.returncode == 0:
-            return result.stdout
-        else:
-            return f"Error: {result.stderr}"
-    except Exception as e:
-        return str(e)
+        if result.returncode != 0:
+            return f"Error: {result.stderr}\nExit Code: {result.returncode}"
+        return result.stdout
+    except FileNotFoundError:
+        return "Command not found."
 
-@tool
+def command_runner_network_disabled(command):
+    return docker_command_runner(command, network_disabled=True)
+
 def build_code_map_tool():
-    """
-    Builds a map of the codebase by parsing all Python files.
-    """
     code_map = {}
-    # Exclude benchmark files from the code map
-    for filepath in glob.glob("**/*.py", recursive=True):
-        if "venv" in filepath or ".venv" in filepath or "benchmark_system_DONT_TOUCH" in filepath:
-            continue
-        with open(filepath, "r") as f:
-            try:
-                tree = ast.parse(f.read(), filename=filepath)
-                code_map[filepath] = {
-                    "imports": [],
-                    "classes": [],
-                    "functions": [],
-                }
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.Import):
-                        for alias in node.names:
-                            code_map[filepath]["imports"].append(alias.name)
-                    elif isinstance(node, ast.ImportFrom):
-                        code_map[filepath]["imports"].append(node.module)
-                    elif isinstance(node, ast.ClassDef):
-                        code_map[filepath]["classes"].append(node.name)
-                    elif isinstance(node, ast.FunctionDef):
-                        code_map[filepath]["functions"].append(node.name)
-            except Exception as e:
-                code_map[filepath] = {"error": f"Failed to parse: {e}"}
-    
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if d not in [".git", ".venv", "__pycache__", "node_modules"]]
+        for file in files:
+            if file.endswith(".py"):
+                path = os.path.join(root, file)
+                with open(path, "r", encoding="utf-8") as f:
+                    try:
+                        content = f.read()
+                        # A simple way to find classes and functions
+                        classes = [line for line in content.split('\n') if line.strip().startswith('class ')]
+                        functions = [line for line in content.split('\n') if line.strip().startswith('def ')]
+                        code_map[path] = {
+                            "classes": {c.split(' ')[1].split('(')[0]: {"methods": {}} for c in classes},
+                            "functions": [f.split(' ')[1].split('(')[0] for f in functions],
+                        }
+                    except Exception as e:
+                        code_map[path] = {"error": f"Failed to parse {path}: {e}"}
     with open("code_map.json", "w") as f:
         json.dump(code_map, f, indent=4)
-    
-    print("[bold blue]Code map written to code_map.json[/]")
-    return code_map
+    return "Successfully built and saved code map to code_map.json"
 
-@tool
-def load_schema_tool(path: str = "api_schema.json"):
-    """
-    Loads a JSON API schema from the specified path.
-    """
+def docker_compose_up_tool():
+    result = command_runner("docker-compose up -d")
+    if "Error" in result:
+        return f"Error starting Docker Compose services.\n{result}"
+    return f"Docker Compose services started successfully.\n{result}"
+
+def docker_compose_down_tool():
+    result = command_runner("docker-compose down")
+    if "Error" in result:
+        return f"Error stopping Docker Compose services.\n{result}"
+    return f"Docker Compose services stopped successfully.\n{result}"
+
+def docker_compose_logs_tool(service="", lines=100):
+    command = f"docker-compose logs --tail={lines} {service}".strip()
+    return command_runner(command)
+
+def validate_api_schema_tool(remote_schema_url):
     try:
-        with open(path, "r") as f:
-            schema = json.load(f)
-        print(f"[bold blue]API Schema loaded from {path}[/]")
-        return schema
+        response = requests.get(remote_schema_url)
+        response.raise_for_status()
+        remote_schema = response.json()
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching remote API schema: {e}"
+
+    try:
+        with open("api_schema.json", "r") as f:
+            local_schema = json.load(f)
     except FileNotFoundError:
-        print(f"[yellow]API Schema file not found at {path}. Skipping...[/]")
-        return None
+        return "Could not find local API schema file: api_schema.json"
     except json.JSONDecodeError:
-        print(f"[bold red]Error: Failed to decode JSON from {path}.[/]")
-        return None
+        return "Could not decode local API schema file: api_schema.json"
 
-@tool
-def websocket_test_tool(uri: str, message: str):
-    """
-    Connects to a WebSocket, sends a message, and returns the response.
-    """
-    async def _test_websocket():
-        try:
-            async with websockets.connect(uri) as websocket:
-                await websocket.send(message)
-                response = await websocket.recv()
-                return f"Response: {response}"
-        except Exception as e:
-            return f"Error: {e}"
-    return asyncio.run(_test_websocket())
+    diff = list(difflib.unified_diff(
+        json.dumps(local_schema, indent=2).splitlines(keepends=True),
+        json.dumps(remote_schema, indent=2).splitlines(keepends=True),
+        fromfile='local_schema.json',
+        tofile='remote_schema.json',
+    ))
 
-@tool
-def docker_compose_up_tool(compose_file: str = "docker-compose.yml"):
-    """
-    Starts services using Docker Compose.
-    """
-    try:
-        result = subprocess.run(
-            f"docker-compose -f {compose_file} up -d", shell=True, capture_output=True, text=True, timeout=120
-        )
-        if result.returncode == 0:
-            return "Docker Compose services started successfully."
-        else:
-            return f"Error starting Docker Compose services: {result.stderr}"
-    except Exception as e:
-        return f"Error: {e}"
-
-@tool
-def docker_compose_down_tool(compose_file: str = "docker-compose.yml"):
-    """
-    Stops services using Docker Compose.
-    """
-    try:
-        result = subprocess.run(
-            f"docker-compose -f {compose_file} down", shell=True, capture_output=True, text=True, timeout=60
-        )
-        if result.returncode == 0:
-            return "Docker Compose services stopped successfully."
-        else:
-            return f"Error stopping Docker Compose services: {result.stderr}"
-    except Exception as e:
-        return f"Error: {e}"
-
-# --- Global State ---
-tools = [read_file_tool, write_file_tool, command_runner_tool, build_code_map_tool, load_schema_tool, websocket_test_tool, docker_compose_up_tool, docker_compose_down_tool]
-tools_map = {t.name: t for t in tools}
-project_memory = {}
-api_key = os.getenv("GEMINI_API_KEY")
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=api_key)
-llm_with_tools = llm.bind_tools(tools)
-
-# --- Agent Core Logic ---
-def run_agent_turn(prompt):
-    messages = [HumanMessage(content=prompt)]
-    context_store = []
-
-    while True:
-        result = llm_with_tools.invoke(messages)
-        messages.append(result)
-
-        if not result.tool_calls:
-            final_answer = result.content
-            print(f"[bold green]Assistant:[/ ] {final_answer}")
-            return final_answer
-
-        thought = f"Thought: {result.content}"
-        print(f"[yellow]Thought:[/ ] {result.content}")
-        context_store.append(thought)
-
-        for tool_call in result.tool_calls:
-            action = f"Action: {tool_call['name']}({tool_call['args']})"
-            print(f"[cyan]Action:[/ ] {tool_call['name']}({tool_call['args']})")
-            tool_output = tools_map[tool_call["name"]].invoke(tool_call["args"])
-            observation = f"Observation: {tool_output}"
-            print(f"[magenta]Observation:[/ ] {tool_output}")
-            messages.append(ToolMessage(tool_output, tool_call_id=tool_call["id"]))
-
-# --- Agent Roles ---
-def spec_generator(user_input):
-    with open("aide/prompts/spec_prompt.txt", "r") as f:
-        prompt = f.read().format(user_input=user_input)
-    spec_json = run_agent_turn(prompt)
-    try:
-        # The model sometimes returns the JSON wrapped in ```json ... ```
-        if spec_json.startswith("```json"):
-            spec_json = spec_json[7:-4]
-        spec = json.loads(spec_json)
-        with open("spec.json", "w") as f:
-            json.dump(spec, f, indent=4)
-        print("[bold blue]Specification written to spec.json[/]")
-        return spec
-    except json.JSONDecodeError:
-        print("[bold red]Error: Spec generator did not return valid JSON.[/]")
-        return None
-
-def planner(spec):
-    with open("aide/prompts/plan_prompt.txt", "r") as f:
-        prompt = f.read().format(spec=json.dumps(spec, indent=4))
-    plan_json = run_agent_turn(prompt)
-    try:
-        if plan_json.startswith("```json"):
-            plan_json = plan_json[7:-4]
-        plan = json.loads(plan_json)
-        with open("plan.json", "w") as f:
-            json.dump(plan, f, indent=4)
-        print("[bold blue]Plan written to plan.json[/]")
-        return plan
-    except json.JSONDecodeError:
-        print("[bold red]Error: Planner did not return valid JSON.[/]")
-        return None
-
-def implementer(spec, plan, code_map, api_schema, critic_feedback=""):
-    with open("aide/prompts/implementer_prompt.txt", "r") as f:
-        prompt = f.read().format(
-            spec=json.dumps(spec, indent=4),
-            plan=json.dumps(plan, indent=4),
-            code_map=json.dumps(code_map, indent=4),
-            api_schema=json.dumps(api_schema, indent=4),
-            critic_feedback=critic_feedback
-        )
-    return run_agent_turn(prompt)
-
-def tester(spec):
-    """
-    Runs tests and generates a report.
-    For now, it assumes pytest is installed and will run it.
-    """
-    # TODO: Determine test command from spec
-    command = "PYTHONPATH=. .venv/bin/pytest tests/"
-    
-    try:
-        result = subprocess.run(
-            command, shell=True, capture_output=True, text=True, timeout=60
-        )
-        
-        report = {
-            "command": command,
-            "returncode": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-        }
-
-        if result.returncode == 0:
-            report["summary"] = "All tests passed."
-        else:
-            report["summary"] = "Tests failed."
-
-    except subprocess.TimeoutExpired:
-        report = {
-            "command": command,
-            "error": "TimeoutExpired",
-            "summary": "Tests timed out.",
-        }
-    except Exception as e:
-        report = {
-            "command": command,
-            "error": str(e),
-            "summary": "An unexpected error occurred during testing.",
-        }
-
-    with open("test_report.json", "w") as f:
-        json.dump(report, f, indent=4)
-    
-    print("[bold blue]Test report written to test_report.json[/]")
-    return report
-
-def critic(spec, plan, code_map, api_schema, test_report):
-    code = ""
-    for deliverable in spec.get("deliverables", []):
-        # This is a bit of a hack to find the code files
-        if "test" not in deliverable:
-            if os.path.exists(deliverable):
-                with open(deliverable, "r") as f:
-                    code += f.read()
-
-    with open("aide/prompts/critic_prompt.txt", "r") as f:
-        prompt = f.read().format(
-            spec=json.dumps(spec, indent=4),
-            plan=json.dumps(plan, indent=4),
-            code_map=json.dumps(code_map, indent=4),
-            api_schema=json.dumps(api_schema, indent=4),
-            test_report=json.dumps(test_report, indent=4),
-            code=code
-        )
-    print(f"[yellow]--- CRITIC PROMPT ---\n{prompt}\n--------------------[/]")
-    critic_feedback_json = run_agent_turn(prompt)
-    try:
-        if critic_feedback_json.startswith("```json"):
-            critic_feedback_json = critic_feedback_json[7:-4]
-        critic_feedback = json.loads(critic_feedback_json)
-        print(f"[bold red]Critic:[/ ] {critic_feedback}")
-        return critic_feedback
-    except json.JSONDecodeError:
-        print("[bold red]Error: Critic did not return valid JSON.[/]")
-        return None
-
-# --- Main Execution Loop ---
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: ./aide/src/aide/app.py <user_request>")
-        return 1
-
-    user_input = " ".join(sys.argv[1:])
-    
-    spec = spec_generator(user_input)
-    if not spec: return 1
-
-    plan = planner(spec)
-    if not plan: return 1
-    
-    code_map = build_code_map_tool.invoke({})
-    api_schema = load_schema_tool.invoke({})
-
-    critic_feedback = ""
-    for i in range(3): # Max 3 iterations
-        print(f"\n[bold blue]--- ITERATION {i+1} ---")
-        
-        implementer(spec, plan, code_map, api_schema, critic_feedback)
-        
-        test_report = tester(spec)
-        if not test_report: return 1
-
-        # Check for success
-        if "All tests passed." in test_report.get("summary", ""):
-            print(f"\n[bold green]--- IMPLEMENTATION SUCCESSFUL ---[/]")
-            break
-            
-        critic_feedback = critic(spec, plan, code_map, api_schema, test_report)
-        if not critic_feedback: return 1
+    if not diff:
+        return "API schema validation successful."
     else:
-        print(f"\n[bold red]--- FAILED TO FIX AFTER 3 ITERATIONS ---[/]")
+        return "API schema validation failed.\n" + "".join(diff)
+
+def get_project_path(user_request: str) -> str:
+    """Creates a sanitized and truncated directory name from the user request."""
+    sanitized = re.sub(r'[^a-zA-Z0-9\s]', '', user_request).lower()
+    sanitized = re.sub(r'\s+', '-', sanitized)
+    return os.path.abspath(sanitized[:50])
+
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description="AIDE - The AI Developer Agent")
+    parser.add_argument('--new', action='store_true', help='Start a new project in a new directory.')
+    parser.add_argument('--max-iterations', type=int, default=10, help='Set the maximum number of iterations.')
+    parser.add_argument('--no-performance-test', action='store_true', help='Skip the performance test.')
+    parser.add_argument('user_request', nargs='+', help='The user request for the agent.')
+    
+    args = parser.parse_args()
+
+    user_request = " ".join(args.user_request)
+    
+    app_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+    if args.new:
+        project_path = get_project_path(user_request)
+        print(f"--- Creating new project directory: {project_path} ---")
+        os.makedirs(project_path, exist_ok=True)
+        os.chdir(project_path)
+    
+    log_event("session_start", {"user_request": user_request})
+
+    app = create_graph()
+    
+    initial_state: AppState = {
+        "user_request": user_request,
+        "app_root": app_root,
+        "user_feedback_queue": [],
+        "critic_feedback": "",
+        "iteration_count": 0,
+        "max_iterations": args.max_iterations,
+        "run_performance_test": not args.no_performance_test,
+    }
+
+    final_state = app.invoke(initial_state)
+
+    print("\n[bold green]--- Run Complete ---")
+    if final_state.get("final_summary"):
+        print(f"[bold green]Status:[/bold green] {final_state['final_summary']}")
+    else:
+        print("[bold red]Status:[/bold red] Failed to complete after maximum iterations.")
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/home/julius/00_projects/102_AIDE/aide/src/aide/app.py", line 12, in <module>
+    from aide.graph import create_graph, AppState
+ModuleNotFoundError: No module named 'aide'

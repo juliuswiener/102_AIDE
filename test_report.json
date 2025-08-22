@@ -1,7 +1,0 @@
-{
-    "command": "PYTHONPATH=. .venv/bin/pytest tests/",
-    "returncode": 0,
-    "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.13.5, pytest-8.4.1, pluggy-1.6.0\nrootdir: /home/julius/01_Private/02_Projects/102_AIDE\nplugins: langsmith-0.4.14, anyio-4.10.0\ncollected 5 items\n\ntests/test_api.py .                                                      [ 20%]\ntests/test_calculator.py ....                                            [100%]\n\n============================== 5 passed in 3.04s ===============================\n",
-    "stderr": "",
-    "summary": "All tests passed."
-}

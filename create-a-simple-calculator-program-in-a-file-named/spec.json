@@ -1,0 +1,17 @@
+{
+    "title": "Simple Calculator Program",
+    "description": "Create a simple calculator program in Python with an add function and a corresponding test.",
+    "acceptance_criteria": [
+        "A Python file named calculator.py containing a function called add.",
+        "The add function takes two numbers as input and returns their sum.",
+        "A Python file named test_calculator.py containing a test for the add function."
+    ],
+    "non_goals": [],
+    "deliverables": [
+        "calculator.py",
+        "test_calculator.py"
+    ],
+    "tests_to_run": [
+        "Run the tests in test_calculator.py to ensure the add function works correctly."
+    ]
+}

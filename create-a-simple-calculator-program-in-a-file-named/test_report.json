@@ -1,0 +1,17 @@
+{
+    "report": {
+        "api_schema_validation": {
+            "status": "skipped",
+            "message": "No api_schema.json file found."
+        },
+        "tests": [
+            {
+                "name": "Run the tests in test_calculator.py to ensure the add function works correctly.",
+                "status": "passed",
+                "message": "Tests passed successfully.",
+                "logs": []
+            }
+        ],
+        "overall_status": "passed"
+    }
+}

@@ -1,0 +1,8 @@
+{
+    "performance_report": {
+        "summary": "No performance tests were conducted because the specification does not define any performance requirements or relevant endpoints (HTTP or WebSocket).  The provided specification only describes functional requirements for a simple calculator program.",
+        "details": [],
+        "metrics": {},
+        "performance_goals_met": true
+    }
+}
